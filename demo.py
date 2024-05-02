@@ -2,60 +2,88 @@ import torch
 from PIL import Image
 from strhub.data.module import SceneTextDataModule
 import os
+import re
 
-# Load model and image transforms
-parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
-img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
+def get_image_list(path):
+    img_list = []
+    for file in os.listdir(path):
+        name, ext = os.path.splitext(file)
+        if ext == '.jpg' and re.search('res_[0-9]+$', name):
+            img_list.append(file)
+    return img_list
 
-img_path = 'data/imgs/ninja_18'
-pos_path = 'data/positions/ninja_18'
+def get_position_list(path):
+    pos_list = []
+    for file in os.listdir(path):
+        name, ext = os.path.splitext(file)
+        if ext == '.txt' and re.search('res_[0-9]+$', name):
+            pos_list.append(file)
+    return pos_list
 
-possible_numbers = [5,8,10,11,14]
-right = 0
-wrong = 0
+def main(cfg):
+    # Load model and image transforms
+    parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
+    img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
 
-img_list = os.listdir(img_path)
-pos_list = os.listdir(pos_path)
-for i in range(len(img_list)):
+    data_path = cfg.data_path
 
-    img_name = img_list[i].split('.')[0]
-    pos_name = pos_list[i].split('.')[0]
+    img_list = get_image_list(data_path)
+    pos_list = get_position_list(data_path)
 
-    path = pos_path + '/res_' + str(img_name) + '.txt'
-    if os.path.getsize(path) > 0:
-        img = Image.open(img_path + '/' + img_list[i]).convert('RGB')
-        pos = open(path).read()
-        pos = pos.replace('\n', ',')
-        pos = pos.split(',')
+    possible_numbers = cfg.possible_numbers
+    img_list_size = len(img_list)
+    img_list_with_string = 0
+    correct = 0
+    incorrect = 0
 
-        pos = [ elem for elem in pos if elem != '']
+    
+    for i in range(img_list_size):
 
-        pos = [int(i) for i in pos]
+        img_name = img_list[i].split('.')[0]
+        #pos_name = pos_list[i].split('.')[0]
 
-        maxX = max([pos[0],pos[2],pos[4],pos[6]])
-        minX = min([pos[0],pos[2],pos[4],pos[6]])
-        maxY = max([pos[1],pos[3],pos[5],pos[7]])
-        minY = min([pos[1],pos[3],pos[5],pos[7]])
+        path = data_path + str(img_name) + '.txt'
+        if os.path.getsize(path) > 0:
+            img_list_with_string += 1
+            img = Image.open(data_path + '/' + img_list[i]).convert('RGB')
+            pos = open(path).read()
+            pos = pos.replace('\n', ',')
+            pos = pos.split(',')
 
-        crop_img = img.crop((minX, minY, maxX, maxY))
-        # Preprocess. Model expects a batch of images with shape: (B, C, H, W)
-        img = img_transform(crop_img).unsqueeze(0)
+            pos = [ elem for elem in pos if elem != '']
 
-        logits = parseq(img)
-        logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
+            pos = [int(i) for i in pos]
 
-        # Greedy decoding
-        pred = logits.softmax(-1)
-        label, confidence = parseq.tokenizer.decode(pred)
-        print(img_list[i] + ' - Decoded label = {}'.format(label[0]))
+            maxX = max([pos[0],pos[2],pos[4],pos[6]])
+            minX = min([pos[0],pos[2],pos[4],pos[6]])
+            maxY = max([pos[1],pos[3],pos[5],pos[7]])
+            minY = min([pos[1],pos[3],pos[5],pos[7]])
+
+            crop_img = img.crop((minX, minY, maxX, maxY))
+            # Preprocess. Model expects a batch of images with shape: (B, C, H, W)
+            img = img_transform(crop_img).unsqueeze(0)
+
+            logits = parseq(img)
+            logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
+
+            # Greedy decoding
+            pred = logits.softmax(-1)
+            label, confidence = parseq.tokenizer.decode(pred)
+            print(img_list[i] + ' - Decoded label = {}'.format(label[0]))
 
 
-        if label[0].isdigit():
-            if possible_numbers.count(int(label[0])):
-                right += 1
-        else:
-            wrong += 1
+            if label[0].isdigit():
+                if possible_numbers.count(int(label[0])):
+                    correct += 1
+                else:
+                    incorrect += 1
+            else:
+                incorrect += 1
 
+    print('Number of pictures: '+ str(img_list_size))
+    print('Number of pictures with characters: '+ str(img_list_with_string))
+    print('Correct labels number: ' + str(correct) + " - " + str(int(correct*100/(correct+incorrect))) + "%" )
+    print('Incorrect labels number: ' + str(incorrect) + " - " + str(int(incorrect*100/(correct+incorrect))) + "%" )
 
-print('Correct labels number: ' + str(right) + " - " + str(int(right*100/(right+wrong))) + "%" )
-print('Incorrect labels number: ' + str(wrong) + " - " + str(int(wrong*100/(right+wrong))) + "%" )
+if __name__ == '__main__':
+    main()
