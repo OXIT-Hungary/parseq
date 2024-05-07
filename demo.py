@@ -24,10 +24,7 @@ def get_position_list(path):
 
 def main(cfg):
 
-    if os.path.isdir(cfg.final_results_path):
-        shutil.rmtree(cfg.final_results_path)
-        os.makedirs(cfg.final_results_path, exist_ok=True)
-    else:
+    if not os.path.isdir(cfg.final_results_path):
         os.makedirs(cfg.final_results_path, exist_ok=True)
 
     current_time = time.localtime()
@@ -64,36 +61,42 @@ def main(cfg):
                 pos = pos.split(',')
 
                 pos = [ elem for elem in pos if elem != '']
-
                 pos = [int(i) for i in pos]
 
-                maxX = max([pos[0],pos[2],pos[4],pos[6]])
-                minX = min([pos[0],pos[2],pos[4],pos[6]])
-                maxY = max([pos[1],pos[3],pos[5],pos[7]])
-                minY = min([pos[1],pos[3],pos[5],pos[7]])
+                number_of_positions = int(len(pos)/8)
 
-                crop_img = img.crop((minX, minY, maxX, maxY))
-                # Preprocess. Model expects a batch of images with shape: (B, C, H, W)
-                img = img_transform(crop_img).unsqueeze(0)
+                for p in range(number_of_positions):
 
-                logits = parseq(img)
-                logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
+                    _img = img
 
-                # Greedy decoding
-                pred = logits.softmax(-1)
-                label, confidence = parseq.tokenizer.decode(pred)
+                    p = p*8
+                    maxX = max([pos[0+p],pos[2+p],pos[4+p],pos[6+p]])
+                    minX = min([pos[0+p],pos[2+p],pos[4+p],pos[6+p]])
+                    maxY = max([pos[1+p],pos[3+p],pos[5+p],pos[7+p]])
+                    minY = min([pos[1+p],pos[3+p],pos[5+p],pos[7+p]])
 
-                print(img_list[i] + ' - Decoded label = {}'.format(label[0]))
-                print(img_list[i] + ' - Decoded label = {}'.format(label[0]), file=f)
+                    crop_img = _img.crop((minX, minY, maxX, maxY))
+                    # Preprocess. Model expects a batch of images with shape: (B, C, H, W)
+                    _img = img_transform(crop_img).unsqueeze(0)
+
+                    logits = parseq(_img)
+                    logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
+
+                    # Greedy decoding
+                    pred = logits.softmax(-1)
+                    label, confidence = parseq.tokenizer.decode(pred)
+
+                    print(img_list[i] + ' - Decoded label = {}'.format(label[0]))
+                    print(img_list[i] + ' - Decoded label = {}'.format(label[0]), file=f)
 
 
-                if label[0].isdigit():
-                    if possible_numbers.count(int(label[0])):
-                        correct += 1
+                    if label[0].isdigit():
+                        if possible_numbers.count(int(label[0])):
+                            correct += 1
+                        else:
+                            incorrect += 1
                     else:
                         incorrect += 1
-                else:
-                    incorrect += 1
 
         print('Number of pictures: '+ str(img_list_size), file=f)
         print('Number of pictures with characters: '+ str(img_list_with_string), file=f)
