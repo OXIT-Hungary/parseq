@@ -10,7 +10,7 @@ def get_image_list(path):
     img_list = []
     for file in os.listdir(path):
         name, ext = os.path.splitext(file)
-        if ext == '.jpg' and re.search('res_[0-9]+$', name):
+        if ext == '.jpg':
             img_list.append(file)
     return img_list
 
@@ -18,7 +18,7 @@ def get_position_list(path):
     pos_list = []
     for file in os.listdir(path):
         name, ext = os.path.splitext(file)
-        if ext == '.txt' and re.search('res_[0-9]+$', name):
+        if ext == '.txt':
             pos_list.append(file)
     return pos_list
 
