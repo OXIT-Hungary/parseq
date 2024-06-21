@@ -24,23 +24,27 @@ def get_position_list(path):
 
 def main(cfg):
 
-    if not os.path.isdir(cfg.final_results_path):
-        os.makedirs(cfg.final_results_path, exist_ok=True)
+    parameters = cfg.submodules.parseq.parameters
+    dataloader = cfg.submodules.parseq.dataloader
+    datawriter = cfg.submodules.parseq.datawriter
+
+    if not os.path.isdir(datawriter.final_results_path):
+        os.makedirs(datawriter.final_results_path, exist_ok=True)
 
     current_time = time.localtime()
-    file_name = cfg.final_results_path + '/' + time.strftime("%Y_%m_%d_%H_%M_%S", current_time) + '.txt'
+    file_name = datawriter.final_results_path + '/' + time.strftime("%Y_%m_%d_%H_%M_%S", current_time) + '.txt'
     with open(file_name, "a") as f:
 
         # Load model and image transforms
         parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
         img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
 
-        data_path = cfg.data_path
+        data_path = dataloader.data_path
 
         img_list = get_image_list(data_path)
         pos_list = get_position_list(data_path)
 
-        possible_numbers = cfg.possible_numbers
+        possible_numbers = parameters.possible_numbers
         img_list_size = len(img_list)
         img_list_with_string = 0
         correct = 0
