@@ -5,6 +5,8 @@ import os
 import re
 import shutil
 import time
+import numpy as np
+from matplotlib import cm
 
 def get_image_list(path):
     img_list = []
@@ -21,6 +23,56 @@ def get_position_list(path):
         if ext == '.txt':
             pos_list.append(file)
     return pos_list
+
+def main_init():
+
+    parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
+
+    img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
+
+    return parseq, img_transform
+
+def main_eval(cfg, parseq, img_transform, img, craft_results):
+
+    if len(craft_results) !=0:
+
+        parameters = cfg.submodules.parseq.parameters
+
+        possible_numbers = parameters.possible_numbers
+
+        max_idx = np.argmax(craft_results[0], axis=0)
+        min_idx = np.argmin(craft_results[0], axis=0)
+        max_x, max_y = craft_results[0][max_idx]
+        min_x, min_y = craft_results[0][min_idx]
+
+        maxX = max_x[0]
+        minX = min_x[0]
+        maxY = max_y[1]
+        minY = min_y[1]
+
+        _img = Image.fromarray(img.astype('uint8'), 'RGB')
+
+        crop_img = _img.crop((minX, minY, maxX, maxY))
+        # Preprocess. Model expects a batch of images with shape: (B, C, H, W)
+        _img = img_transform(crop_img).unsqueeze(0)
+
+        logits = parseq(_img)
+        logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
+
+        # Greedy decoding
+        pred = logits.softmax(-1)
+        label, confidence = parseq.tokenizer.decode(pred)
+
+        """ if label[0].isdigit():
+            if possible_numbers.count(int(label[0])):
+                print('Decoded label = {}'.format(label[0]))
+            else:
+                print('Nope')
+        else:
+            print('Nope') """
+
+        return label[0]
+
 
 def main(cfg):
 
