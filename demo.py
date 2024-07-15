@@ -44,7 +44,7 @@ def main_eval(cfg, parseq, img_transform, img, bboxes, craft_results):
         current_craft_result = craft_results[idx]
         if len(current_craft_result) !=0:
 
-            parameters = cfg.submodules.parseq.parameters
+            parameters = cfg.models.parseq.parameters
 
             possible_numbers = parameters.possible_numbers
 
